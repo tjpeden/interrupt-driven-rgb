@@ -11,15 +11,18 @@
 #include <LowPower_Teensy3.h>
 #include <FiniteStateMachine.h>
 
+// SPI Pins
 #define OLED_MOSI 11
 #define OLED_CLK 13
 #define OLED_CS 10
 #define OLED_DC 3
 #define OLED_RESET 2
 
+// Timer IDs
 #define GET_FIX_TIMER 1
 #define READ_LOCATION_TIMER 2
 
+// Index Labels
 #define LAT_INDEX 0
 #define LNG_INDEX 1
 
@@ -35,22 +38,23 @@ uint8_t waypoint_index = 0;
 const double waypoint[][2] = {
   { 36.049521, -95.921004 },
   { 36.048774, -95.921697 },
-  // { 36.140135, -96.004070 },
+  { 36.048706, -95.920835 },
 };
 
 Button button = Button(buttonPin);
 
-// U8GLIB_SSD1351_128X128_HICOLOR oled(OLED_CS, OLED_DC, OLED_RESET);
 Ucglib_SSD1351_18x128x128_HWSPI oled(OLED_DC, OLED_CS, OLED_RESET);
 
 TEENSY3_LP LP = TEENSY3_LP();
 
 TinyGPSPlus gps;
 
+// Custom NMEA parsers
 TinyGPSCustom ack_command(gps, "PMTK001", 1);
 TinyGPSCustom ack_response(gps, "PMTK001", 2);
 TinyGPSCustom awake(gps, "PMTK010", 1);
 
+// Internal States
 State GetFix       = State(enterGetFix, updateGetFix, exitGetFix);
 State ReadLocation = State(enterReadLocation, updateReadLocation, exitReadLocation);
 State SleepModules = State(enterSleepModules, updateSleepModules, NULL);
@@ -62,6 +66,7 @@ State GPSFailure   = State(enterGPSFailure, NULL, NULL);
 
 FSM stateMachine = FSM(GetFix);
 
+// Event handlers
 void onClick(Button& button) {
   if(stateMachine.isInState(NextWaypoint)) {
     if(waypoint_index >= arraySize(waypoint)) {
@@ -107,23 +112,24 @@ void drawTitle(const __FlashStringHelper *ifsh) {
 
 void enterGetFix() {
   drawTitle(F("Aquiring Fix"));
-  oled.setFont(ucg_font_fixed_v0r);
+  oled.setFont(ucg_font_6x12r);
 
   oled.setColor(255, 255, 0);
   oled.setPrintPos(0, oled.getHeight() / 2);
   oled << F("Please wait...");
 
+  delay(1000);
   TimedEvent.start(GET_FIX_TIMER);
 }
 
 void updateGetFix() {
-  if(gps.location.isValid())
+  if(gps.location.isValid() && gps.location.isUpdated() && gps.location.age() < 200)
     stateMachine.transitionTo(ReadLocation);
 
   oled.setColor(255, 255, 255);
 
   oled.setPrintPos(0, oled.getHeight() + oled.getFontDescent());
-  oled << gps.satellites.value() << F(" satellites");
+  oled.printf(F("%d satellites  "), gps.satellites.value());
 }
 
 void exitGetFix() {
@@ -132,7 +138,6 @@ void exitGetFix() {
 
 void enterReadLocation() {
   drawTitle(F("Directions"));
-  oled.setClipRange(0, 22, oled.getWidth(), oled.getHeight() - 22);
 
   TimedEvent.start(READ_LOCATION_TIMER);
 }
@@ -158,18 +163,6 @@ void updateReadLocation() {
       stateMachine.transitionTo(NextWaypoint);
   }
 
-  if((gps.date.isUpdated() && gps.date.age() < 200) || (gps.time.isUpdated() && gps.time.age() < 200)) {
-    setTime(
-      gps.time.hour(),
-      gps.time.minute(),
-      gps.time.second(),
-      gps.date.day(),
-      gps.date.month(),
-      gps.date.year()
-    );
-    adjustTime(-6 * SECS_PER_HOUR);
-  }
-
   drawReadLocation();
 }
 
@@ -179,7 +172,7 @@ void exitReadLocation() {
 
 void enterSleepModules() {
   drawTitle(F("Going to Sleep"));
-  oled.setFont(ucg_font_fixed_v0r);
+  oled.setFont(ucg_font_6x12r);
 
   oled.setColor(255, 255, 0);
   oled.setPrintPos(0, oled.getHeight() / 2);
@@ -205,7 +198,7 @@ void updateSleepNow() {
 
 void enterWakeModules() {
   drawTitle(F("Waking"));
-  oled.setFont(ucg_font_fixed_v0r);
+  oled.setFont(ucg_font_6x12r);
 
   oled.setColor(255, 255, 0);
   oled.setPrintPos(0, oled.getHeight() / 2);
@@ -217,14 +210,13 @@ void enterWakeModules() {
 void updateWakeModules() {
   if(awake.isUpdated()) {
     awake.value();
-    delay(1000);
     stateMachine.transitionTo(GetFix);
   }
 }
 
 void enterNextWaypoint() {
   drawTitle(F("Waypoint Reached"));
-  oled.setFont(ucg_font_fixed_v0r);
+  oled.setFont(ucg_font_6x12r);
 
   oled.setColor(255, 255, 0);
   oled.setPrintPos(0, oled.getHeight() / 2);
@@ -241,7 +233,7 @@ void enterLastWaypoint() {
 
 void enterGPSFailure() {
   drawTitle(F("GPS Failure"));
-  oled.setFont(ucg_font_fixed_v0r);
+  oled.setFont(ucg_font_6x12r);
 
   oled.setColor(255, 255, 0);
   oled.setPrintPos(0, oled.getHeight() / 2);
@@ -249,45 +241,32 @@ void enterGPSFailure() {
 }
 
 void drawReadLocation() {
-  char datetime[24];
-  char status[24];
+  // Distance as a formated string
+  char _distanceTo[14];
+  sprintf(_distanceTo, "%.2f mi\0", distanceTo);
 
-  sprintf(datetime, "%d-%02d-%02d    %02d:%02d:%02d", year(), month(), day(), hourFormat12(), minute(), second());
-  sprintf(status, "%2d satellites", gps.satellites.value());
+  // Debug info formatted
+  char _debug[21];
+  sprintf(_debug, "hdop: %d WP: %d/%d", gps.hdop.value(), (waypoint_index + 1), arraySize(waypoint));
 
-  oled.setFont(ucg_font_7x13Br);
-
-  oled.setColor(0, 0, 255);
-  oled.drawRFrame(0, 0, oled.getWidth(), 20, 3);
-
-
-  oled.setColor(255, 255, 255);
-  oled.setPrintPos(5, 15);
-  oled << F("Directions");
-
-  oled.setFont(ucg_font_fixed_v0r);
-
-  oled.setColor(255, 255, 255);
-  oled.setPrintPos(0, 22);
-  oled << datetime;
-
-  oled.setFont(ucg_font_7x13Br);
+  oled.setFont(ucg_font_9x15Br);
   oled.setColor(0, 255, 0);
 
   oled.setPrintPos(0, oled.getHeight() / 2);
-  oled << distanceTo << F(" miles");
+  oled.printf(F("%-14s"), _distanceTo);
 
   oled.setPrintPos(0, (oled.getHeight() / 2) + (oled.getFontAscent() - oled.getFontDescent()));
-  oled << TinyGPSPlus::cardinal(course);
+  oled.printf(F("%-14s"), TinyGPSPlus::cardinal(course));
 
-  oled.setFont(ucg_font_fixed_v0r);
+  oled.setFont(ucg_font_6x12r);
   oled.setColor(255, 255, 255);
 
   oled.setPrintPos(0, oled.getHeight() + oled.getFontDescent());
-  oled << status;
+  oled.printf(F("%d satellites  "), gps.satellites.value());
 
-  oled.setPrintPos(0, oled.getHeight() + (oled.getFontDescent() + 12));
-  oled << F("hdop: ") << gps.hdop.value() << F(" WP: ") << (waypoint_index + 1) << '/' << arraySize(waypoint) << "    ";
+  // Debug info
+  oled.setPrintPos(0, (oled.getHeight() + oled.getFontDescent()) - 12);
+  oled.printf(F("%-21s"), _debug);
 }
 
 void setup() {
@@ -295,7 +274,7 @@ void setup() {
   button.holdHandler(onHold, 5000);
 
   TimedEvent.addTimer(GET_FIX_TIMER, 5000, gpsFailure);
-  TimedEvent.addTimer(READ_LOCATION_TIMER, 60000, initiateSleep);
+  TimedEvent.addTimer(READ_LOCATION_TIMER, 60000*5, initiateSleep);
 
   Serial3.begin(9600);
   delay(1000);
@@ -310,6 +289,6 @@ void setup() {
 void loop() {
   while(Serial3.available()) gps << Serial3.read();
   TimedEvent.loop();
-  Button.process();
+  button.process();
   stateMachine.update();
 }
