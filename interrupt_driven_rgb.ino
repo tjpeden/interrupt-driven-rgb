@@ -41,7 +41,7 @@ double course;
 
 WaypointManager waypoint_manager(0);
 
-Button button = Button(buttonPin);
+Button button = Button(buttonPin, BUTTON_PULLUP_INTERNAL, true, 100);
 
 Ucglib_SSD1351_18x128x128_HWSPI oled(OLED_DC, OLED_CS, OLED_RESET);
 
@@ -69,7 +69,7 @@ State SDFailure    = State(enterSDFailure, NULL, NULL);
 FSM stateMachine = FSM(Loading);
 
 // Event handlers
-void onClick(Button& button) {
+void onPress(Button& button) {
   if(stateMachine.isInState(NextWaypoint)) {
     if(waypoint_manager.hasNext()) {
       stateMachine.transitionTo(ReadLocation);
@@ -125,18 +125,11 @@ void updateLoading() {
     return;
   }
 
-  // Look, I know... don't care
-  // Location points[] = {
-  //   { 36.049521, -95.921004 },
-  //   { 36.048774, -95.921697 },
-  //   { 36.048706, -95.920835 },
-  // };
-
-  // if(!waypoint_manager.loadWaypoints(points, arraySize(points))) {
   if(!waypoint_manager.loadWaypoints("settings.txt")) {
     stateMachine.transitionTo(SDFailure);
     return;
   }
+  // waypoint_manager.debug(&Serial);
 
   delay(1000); // prevent ugly flicker
 
@@ -344,7 +337,7 @@ void drawReadLocation() {
 void setup() {
   pinMode(SD_CS, OUTPUT);
 
-  button.clickHandler(onClick);
+  button.pressHandler(onPress);
   button.holdHandler(onHold, 15000);
 
   TimedEvent.addTimer(GET_FIX_TIMER, 5000, gpsFailure);

@@ -72,16 +72,19 @@ WaypointManager::reset() {
 
 bool
 WaypointManager::hasNext() {
-  return index <= waypoints->size();
+  return index < waypoints->size();
 }
 
 void
 WaypointManager::stats(char* buffer) {
-  sprintf(buffer, "%d/%d", index, waypoints->size());
+  sprintf(buffer, "%d/%d", index + 1, waypoints->size());
 }
 
 void WaypointManager::debug(Stream *s) {
-  for(int i = 0; i < waypoints->size(); i++) {
+  size_t size = waypoints->size();
+  s->print(F("Size: "));
+  s->println(size);
+  for(int i = 0; i < size; i++) {
     Location l = waypoints->get(i);
     s->print(F("Waypoint #"));
     s->print(i);
@@ -90,6 +93,8 @@ void WaypointManager::debug(Stream *s) {
     s->print(F(", "));
     s->println(l.longitude);
   }
+  s->print(F("Index: "));
+  s->println(index);
 }
 
 void
