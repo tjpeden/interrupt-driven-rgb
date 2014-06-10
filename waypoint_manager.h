@@ -17,7 +17,9 @@ public:
   void next();
   void reset();
   bool hasNext();
-  char* toString();
+  void stats(char*);
+
+  void debug(Stream*);
 
 private:
   LinkedList<Location> *waypoints;

@@ -39,12 +39,6 @@ const double threshold = 0.01;
 double distanceTo;
 double course;
 
-// const double waypoint[][2] = {
-//   { 36.049521, -95.921004 },
-//   { 36.048774, -95.921697 },
-//   { 36.048706, -95.920835 },
-// };
-
 WaypointManager waypoint_manager(0);
 
 Button button = Button(buttonPin);
@@ -86,11 +80,10 @@ void onClick(Button& button) {
 }
 
 void onHold(Button& button) {
-  if(millis() < 6000 || stateMachine.isInState(LastWaypoint)) {
+  if(millis() < 20000 || stateMachine.isInState(LastWaypoint)) {
     waypoint_manager.reset();
   } else {
-    if(gps.location.isValid())
-      stateMachine.transitionTo(NextWaypoint);
+    if(gps.location.isValid()) stateMachine.transitionTo(NextWaypoint);
   }
 }
 
@@ -127,24 +120,29 @@ void enterLoading() {
 }
 
 void updateLoading() {
-  // if(!SD.begin()) {
-  //   stateMachine.transitionTo(SDFailure);
-  //   return;
-  // }
+  if(!SD.begin(SD_CS)) {
+    stateMachine.transitionTo(SDFailure);
+    return;
+  }
 
   // Look, I know... don't care
-  Location points[] = {
-    { 36.049521, -95.921004 },
-    { 36.048774, -95.921697 },
-    { 36.048706, -95.920835 },
-  };
+  // Location points[] = {
+  //   { 36.049521, -95.921004 },
+  //   { 36.048774, -95.921697 },
+  //   { 36.048706, -95.920835 },
+  // };
 
-  if(!waypoint_manager.loadWaypoints(points, arraySize(points))) {
+  // if(!waypoint_manager.loadWaypoints(points, arraySize(points))) {
+  if(!waypoint_manager.loadWaypoints("settings.txt")) {
     stateMachine.transitionTo(SDFailure);
     return;
   }
 
   delay(1000); // prevent ugly flicker
+
+  // Prevent the display from going crazy
+  oled.begin(UCG_FONT_MODE_SOLID);
+  oled.setColor(1, 0, 0, 0);
 
   if(waypoint_manager.hasNext()) {
     stateMachine.transitionTo(GetFix);
@@ -265,7 +263,7 @@ void enterNextWaypoint() {
   drawTitle(F("Waypoint Reached"));
   oled.setFont(ucg_font_6x12r);
 
-  oled.setColor(255, 0, 0);
+  oled.setColor(255, 255, 0);
   oled.setPrintPos(0, oled.getHeight() / 2);
   oled << F("Push the button to");
   oled.setPrintPos(0, (oled.getHeight() / 2) + (oled.getFontAscent() - oled.getFontDescent()));
@@ -310,11 +308,18 @@ void enterSDFailure() {
 void drawReadLocation() {
   // Distance as a formated string
   char _distanceTo[14];
-  sprintf(_distanceTo, "%.2f mi", distanceTo);
+  if(distanceTo < 0.1) {
+    double ft = distanceTo * 5280;
+    sprintf(_distanceTo, "%.0f ft", ft);
+  } else {
+    sprintf(_distanceTo, "%.2f mi", distanceTo);
+  }
 
   // Debug info formatted
+  char _stats[8];
   char _debug[21];
-  sprintf(_debug, "hdop: %d WP: %s", gps.hdop.value(), waypoint_manager.toString());
+  waypoint_manager.stats(_stats);
+  sprintf(_debug, "hdop: %d WP: %s", gps.hdop.value(), _stats);
 
   oled.setFont(ucg_font_9x15Br);
   oled.setColor(0, 255, 0);
@@ -340,7 +345,7 @@ void setup() {
   pinMode(SD_CS, OUTPUT);
 
   button.clickHandler(onClick);
-  button.holdHandler(onHold, 5000);
+  button.holdHandler(onHold, 15000);
 
   TimedEvent.addTimer(GET_FIX_TIMER, 5000, gpsFailure);
   TimedEvent.addTimer(READ_LOCATION_TIMER, 60000*5, initiateSleep);

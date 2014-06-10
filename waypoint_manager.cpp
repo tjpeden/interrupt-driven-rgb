@@ -75,11 +75,21 @@ WaypointManager::hasNext() {
   return index <= waypoints->size();
 }
 
-char*
-WaypointManager::toString() {
-  char buffer[5];
-  snprintf(buffer, sizeof(buffer), "%d/%d", index, waypoints->size());
-  return buffer;
+void
+WaypointManager::stats(char* buffer) {
+  sprintf(buffer, "%d/%d", index, waypoints->size());
+}
+
+void WaypointManager::debug(Stream *s) {
+  for(int i = 0; i < waypoints->size(); i++) {
+    Location l = waypoints->get(i);
+    s->print(F("Waypoint #"));
+    s->print(i);
+    s->print(F(": "));
+    s->print(l.latitude);
+    s->print(F(", "));
+    s->println(l.longitude);
+  }
 }
 
 void
