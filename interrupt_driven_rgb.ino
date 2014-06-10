@@ -1,22 +1,28 @@
 // #include <pitches.h>
 
+#include <SD.h>
 #include <SPI.h>
-#include <Time.h>
-// #include <EEPROM.h>
+#include <EEPROM.h>
 #include <Button.h>
 #include <Ucglib.h>
 #include <TinyGPS++.h>
 #include <Streaming.h>
+#include <JsonParser.h>
+#include <LinkedList.h>
 #include <TimedEvent.h>
 #include <LowPower_Teensy3.h>
 #include <FiniteStateMachine.h>
 
+#include "waypoint_manager.h"
+
 // SPI Pins
 #define OLED_MOSI 11
 #define OLED_CLK 13
-#define OLED_CS 10
+#define OLED_CS 14
 #define OLED_DC 3
 #define OLED_RESET 2
+#define SD_MISO 12
+#define SD_CS 10
 
 // Timer IDs
 #define GET_FIX_TIMER 1
@@ -29,17 +35,17 @@
 #define arraySize(a) (sizeof(a) / sizeof(a[0]))
 
 const uint8_t buttonPin = 6;
-// const uint8_t id_address = 0;
 const double threshold = 0.01;
 double distanceTo;
 double course;
-uint8_t waypoint_index = 0;
 
-const double waypoint[][2] = {
-  { 36.049521, -95.921004 },
-  { 36.048774, -95.921697 },
-  { 36.048706, -95.920835 },
-};
+// const double waypoint[][2] = {
+//   { 36.049521, -95.921004 },
+//   { 36.048774, -95.921697 },
+//   { 36.048706, -95.920835 },
+// };
+
+WaypointManager waypoint_manager(0);
 
 Button button = Button(buttonPin);
 
@@ -55,6 +61,7 @@ TinyGPSCustom ack_response(gps, "PMTK001", 2);
 TinyGPSCustom awake(gps, "PMTK010", 1);
 
 // Internal States
+State Loading      = State(enterLoading, updateLoading, NULL);
 State GetFix       = State(enterGetFix, updateGetFix, exitGetFix);
 State ReadLocation = State(enterReadLocation, updateReadLocation, exitReadLocation);
 State SleepModules = State(enterSleepModules, updateSleepModules, NULL);
@@ -63,23 +70,24 @@ State WakeModules  = State(enterWakeModules, updateWakeModules, NULL);
 State NextWaypoint = State(enterNextWaypoint, NULL, NULL);
 State LastWaypoint = State(enterLastWaypoint, NULL, NULL);
 State GPSFailure   = State(enterGPSFailure, NULL, NULL);
+State SDFailure    = State(enterSDFailure, NULL, NULL);
 
-FSM stateMachine = FSM(GetFix);
+FSM stateMachine = FSM(Loading);
 
 // Event handlers
 void onClick(Button& button) {
   if(stateMachine.isInState(NextWaypoint)) {
-    if(waypoint_index >= arraySize(waypoint)) {
-      stateMachine.transitionTo(LastWaypoint);
-    } else {
+    if(waypoint_manager.hasNext()) {
       stateMachine.transitionTo(ReadLocation);
+    } else {
+      stateMachine.transitionTo(LastWaypoint);
     }
   }
 }
 
 void onHold(Button& button) {
   if(millis() < 6000 || stateMachine.isInState(LastWaypoint)) {
-    waypoint_index = 0;
+    waypoint_manager.reset();
   } else {
     if(gps.location.isValid())
       stateMachine.transitionTo(NextWaypoint);
@@ -109,6 +117,41 @@ void drawTitle(const __FlashStringHelper *ifsh) {
 }
 
 // States
+void enterLoading() {
+  drawTitle(F("Loading"));
+  oled.setFont(ucg_font_6x12r);
+
+  oled.setColor(255, 255, 0);
+  oled.setPrintPos(0, oled.getHeight() / 2);
+  oled << F("Please wait...");
+}
+
+void updateLoading() {
+  // if(!SD.begin()) {
+  //   stateMachine.transitionTo(SDFailure);
+  //   return;
+  // }
+
+  // Look, I know... don't care
+  Location points[] = {
+    { 36.049521, -95.921004 },
+    { 36.048774, -95.921697 },
+    { 36.048706, -95.920835 },
+  };
+
+  if(!waypoint_manager.loadWaypoints(points, arraySize(points))) {
+    stateMachine.transitionTo(SDFailure);
+    return;
+  }
+
+  delay(1000); // prevent ugly flicker
+
+  if(waypoint_manager.hasNext()) {
+    stateMachine.transitionTo(GetFix);
+  } else {
+    stateMachine.transitionTo(LastWaypoint);
+  }
+}
 
 void enterGetFix() {
   drawTitle(F("Aquiring Fix"));
@@ -126,10 +169,12 @@ void updateGetFix() {
   if(gps.location.isValid() && gps.location.isUpdated() && gps.location.age() < 200)
     stateMachine.transitionTo(ReadLocation);
 
-  oled.setColor(255, 255, 255);
+  if(gps.satellites.isUpdated()) {
+    oled.setColor(255, 255, 255);
 
-  oled.setPrintPos(0, oled.getHeight() + oled.getFontDescent());
-  oled.printf(F("%d satellites  "), gps.satellites.value());
+    oled.setPrintPos(0, oled.getHeight() + oled.getFontDescent());
+    oled.printf(F("%d satellites  "), gps.satellites.value());
+  }
 }
 
 void exitGetFix() {
@@ -144,26 +189,28 @@ void enterReadLocation() {
 
 void updateReadLocation() {
   if(gps.location.isUpdated() && gps.location.age() < 200) {
+    Location waypoint = waypoint_manager.current();
+
     distanceTo =
       TinyGPSPlus::distanceBetween(
         gps.location.lat(),
         gps.location.lng(),
-        waypoint[waypoint_index][LAT_INDEX],
-        waypoint[waypoint_index][LNG_INDEX]
+        waypoint.latitude,
+        waypoint.longitude
       ) * _GPS_MILES_PER_METER;
     course =
       TinyGPSPlus::courseTo(
         gps.location.lat(),
         gps.location.lng(),
-        waypoint[waypoint_index][LAT_INDEX],
-        waypoint[waypoint_index][LNG_INDEX]
+        waypoint.latitude,
+        waypoint.longitude
       );
 
     if(distanceTo < threshold)
       stateMachine.transitionTo(NextWaypoint);
-  }
 
-  drawReadLocation();
+    drawReadLocation();
+  }
 }
 
 void exitReadLocation() {
@@ -218,36 +265,56 @@ void enterNextWaypoint() {
   drawTitle(F("Waypoint Reached"));
   oled.setFont(ucg_font_6x12r);
 
-  oled.setColor(255, 255, 0);
+  oled.setColor(255, 0, 0);
   oled.setPrintPos(0, oled.getHeight() / 2);
   oled << F("Push the button to");
   oled.setPrintPos(0, (oled.getHeight() / 2) + (oled.getFontAscent() - oled.getFontDescent()));
   oled << F("continue.");
 
-  waypoint_index++;
+  waypoint_manager.next();
 }
 
 void enterLastWaypoint() {
   drawTitle(F("Open the Box"));
+  oled.setFont(ucg_font_9x15Br);
+
+  oled.setColor(0, 255, 0);
+  oled.setPrintPos(0, oled.getHeight() / 2);
+  oled << F("You made it!");
+  oled.setPrintPos(0, (oled.getHeight() / 2) + (oled.getFontAscent() - oled.getFontDescent()));
+  oled << F("You may open");
+  oled.setPrintPos(0, (oled.getHeight() / 2) + (oled.getFontAscent() - oled.getFontDescent()) * 2);
+  oled << F("the box.");
 }
 
 void enterGPSFailure() {
   drawTitle(F("GPS Failure"));
   oled.setFont(ucg_font_6x12r);
 
-  oled.setColor(255, 255, 0);
+  oled.setColor(255, 0, 0);
   oled.setPrintPos(0, oled.getHeight() / 2);
   oled << F("No data from GPS!");
+}
+
+void enterSDFailure() {
+  drawTitle(F("SD Card Failure"));
+  oled.setFont(ucg_font_6x12r);
+
+  oled.setColor(255, 0, 0);
+  oled.setPrintPos(0, oled.getHeight() / 2);
+  oled << F("There was a problem");
+  oled.setPrintPos(0, (oled.getHeight() / 2) + (oled.getFontAscent() - oled.getFontDescent()));
+  oled << F("reading the SD card.");
 }
 
 void drawReadLocation() {
   // Distance as a formated string
   char _distanceTo[14];
-  sprintf(_distanceTo, "%.2f mi\0", distanceTo);
+  sprintf(_distanceTo, "%.2f mi", distanceTo);
 
   // Debug info formatted
   char _debug[21];
-  sprintf(_debug, "hdop: %d WP: %d/%d", gps.hdop.value(), (waypoint_index + 1), arraySize(waypoint));
+  sprintf(_debug, "hdop: %d WP: %s", gps.hdop.value(), waypoint_manager.toString());
 
   oled.setFont(ucg_font_9x15Br);
   oled.setColor(0, 255, 0);
@@ -270,6 +337,8 @@ void drawReadLocation() {
 }
 
 void setup() {
+  pinMode(SD_CS, OUTPUT);
+
   button.clickHandler(onClick);
   button.holdHandler(onHold, 5000);
 
@@ -279,7 +348,7 @@ void setup() {
   Serial3.begin(9600);
   delay(1000);
   Serial3.println(F("$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28"));
-  Serial3.println(F("$PMTK220,200*2C"));
+  Serial3.println(F("$PMTK220,1000*1F"));
 
   oled.begin(UCG_FONT_MODE_SOLID);
   oled.setColor(1, 0, 0, 0);
