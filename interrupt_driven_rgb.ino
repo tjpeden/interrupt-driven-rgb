@@ -13,6 +13,7 @@
 #include <LowPower_Teensy3.h>
 #include <FiniteStateMachine.h>
 
+#include "interrupt_driven_rgb.h"
 #include "waypoint_manager.h"
 
 // SPI Pins
@@ -35,7 +36,7 @@
 #define arraySize(a) (sizeof(a) / sizeof(a[0]))
 
 const uint8_t buttonPin = 6;
-const double threshold = 0.01;
+const double threshold = 0.0075; // ~40 ft seems optimal
 double distanceTo;
 double course;
 
@@ -61,8 +62,8 @@ State ReadLocation = State(enterReadLocation, updateReadLocation, exitReadLocati
 State SleepModules = State(enterSleepModules, updateSleepModules, NULL);
 State SleepNow     = State(updateSleepNow);
 State WakeModules  = State(enterWakeModules, updateWakeModules, NULL);
-State NextWaypoint = State(enterNextWaypoint, NULL, NULL);
-State LastWaypoint = State(enterLastWaypoint, NULL, NULL);
+State Checkpoint   = State(enterCheckpoint, NULL, NULL);
+State OpenBox      = State(enterOpenBox, NULL, NULL);
 State GPSFailure   = State(enterGPSFailure, NULL, NULL);
 State SDFailure    = State(enterSDFailure, NULL, NULL);
 
@@ -70,20 +71,20 @@ FSM stateMachine = FSM(Loading);
 
 // Event handlers
 void onPress(Button& button) {
-  if(stateMachine.isInState(NextWaypoint)) {
+  if(stateMachine.isInState(Checkpoint)) {
     if(waypoint_manager.hasNext()) {
       stateMachine.transitionTo(ReadLocation);
     } else {
-      stateMachine.transitionTo(LastWaypoint);
+      stateMachine.transitionTo(OpenBox);
     }
   }
 }
 
 void onHold(Button& button) {
-  if(millis() < 20000 || stateMachine.isInState(LastWaypoint)) {
+  if(millis() < 20000 || stateMachine.isInState(OpenBox)) {
     waypoint_manager.reset();
   } else {
-    if(gps.location.isValid()) stateMachine.transitionTo(NextWaypoint);
+    if(gps.location.isValid()) stateMachine.transitionTo(Checkpoint);
   }
 }
 
@@ -96,8 +97,7 @@ void initiateSleep(TimerInformation* sender) {
   stateMachine.transitionTo(SleepModules);
 }
 
-void drawTitle(const __FlashStringHelper *ifsh) {
-  oled.undoClipRange();
+void drawTitleBorder() {
   oled.clearScreen();
 
   oled.setColor(0, 0, 255);
@@ -106,7 +106,52 @@ void drawTitle(const __FlashStringHelper *ifsh) {
   oled.setFont(ucg_font_7x13Br);
   oled.setColor(255, 255, 255);
   oled.setPrintPos(5, 14);
+}
+
+void drawTitle(const __FlashStringHelper *ifsh) {
+  drawTitleBorder();
   oled << ifsh;
+}
+
+void drawTitle(char *text) {
+  drawTitleBorder();
+  oled << text;
+}
+
+uint8_t l(uint8_t offset, Base base) {
+  uint8_t baseline = 0;
+  switch(base) {
+    case TOP:
+    baseline = 24 + oled.getFontAscent();
+    break;
+    case CENTER:
+    baseline = oled.getHeight() / 2;
+    break;
+    case BOTTOM:
+    baseline = oled.getHeight() + oled.getFontDescent();
+    break;
+  }
+
+  baseline += (oled.getFontAscent() - oled.getFontDescent()) * offset;
+
+  return baseline;
+}
+
+void describe(char* text, uint8_t width) {
+  uint8_t index, line = 0;
+  String string = text;
+
+  for(uint8_t i = 0, j = width; j < string.length(); j = index + width, i = index + 1) {
+    index = string.lastIndexOf(' ', j);
+    if(index < 0) index = j;
+
+    oled.setPrintPos(0, l(line, TOP));
+    oled << string.substring(i, index);
+    line++;
+  }
+
+  oled.setPrintPos(0, l(line, TOP));
+  oled << string.substring(index+1);
 }
 
 // States
@@ -115,7 +160,7 @@ void enterLoading() {
   oled.setFont(ucg_font_6x12r);
 
   oled.setColor(255, 255, 0);
-  oled.setPrintPos(0, oled.getHeight() / 2);
+  oled.setPrintPos(0, l(0, CENTER));
   oled << F("Please wait...");
 }
 
@@ -140,7 +185,7 @@ void updateLoading() {
   if(waypoint_manager.hasNext()) {
     stateMachine.transitionTo(GetFix);
   } else {
-    stateMachine.transitionTo(LastWaypoint);
+    stateMachine.transitionTo(OpenBox);
   }
 }
 
@@ -149,7 +194,7 @@ void enterGetFix() {
   oled.setFont(ucg_font_6x12r);
 
   oled.setColor(255, 255, 0);
-  oled.setPrintPos(0, oled.getHeight() / 2);
+  oled.setPrintPos(0, l(0, CENTER));
   oled << F("Please wait...");
 
   delay(1000);
@@ -163,7 +208,7 @@ void updateGetFix() {
   if(gps.satellites.isUpdated()) {
     oled.setColor(255, 255, 255);
 
-    oled.setPrintPos(0, oled.getHeight() + oled.getFontDescent());
+    oled.setPrintPos(0, l(0, BOTTOM));
     oled.printf(F("%d satellites  "), gps.satellites.value());
   }
 }
@@ -198,7 +243,7 @@ void updateReadLocation() {
       );
 
     if(distanceTo < threshold)
-      stateMachine.transitionTo(NextWaypoint);
+      stateMachine.transitionTo(Checkpoint);
 
     drawReadLocation();
   }
@@ -213,7 +258,7 @@ void enterSleepModules() {
   oled.setFont(ucg_font_6x12r);
 
   oled.setColor(255, 255, 0);
-  oled.setPrintPos(0, oled.getHeight() / 2);
+  oled.setPrintPos(0, l(0, CENTER));
   oled << F("Please wait...");
 
   Serial3.println(F("$PMTK161,0*28")); // Sleep GPS
@@ -239,7 +284,7 @@ void enterWakeModules() {
   oled.setFont(ucg_font_6x12r);
 
   oled.setColor(255, 255, 0);
-  oled.setPrintPos(0, oled.getHeight() / 2);
+  oled.setPrintPos(0, l(0, CENTER));
   oled << F("Please wait...");
 
   Serial3.println(' ');
@@ -252,29 +297,34 @@ void updateWakeModules() {
   }
 }
 
-void enterNextWaypoint() {
-  drawTitle(F("Waypoint Reached"));
+void enterCheckpoint() {
+  Location current = waypoint_manager.current();
+
+  drawTitle(current.name);
   oled.setFont(ucg_font_6x12r);
 
+  oled.setColor(0, 255, 0);
+  describe(current.description, 21);
+
   oled.setColor(255, 255, 0);
-  oled.setPrintPos(0, oled.getHeight() / 2);
+  oled.setPrintPos(0, l(-1, BOTTOM));
   oled << F("Push the button to");
-  oled.setPrintPos(0, (oled.getHeight() / 2) + (oled.getFontAscent() - oled.getFontDescent()));
+  oled.setPrintPos(0, l(0, BOTTOM));
   oled << F("continue.");
 
   waypoint_manager.next();
 }
 
-void enterLastWaypoint() {
+void enterOpenBox() {
   drawTitle(F("Open the Box"));
   oled.setFont(ucg_font_9x15Br);
 
   oled.setColor(0, 255, 0);
-  oled.setPrintPos(0, oled.getHeight() / 2);
+  oled.setPrintPos(0, l(0, CENTER));
   oled << F("You made it!");
-  oled.setPrintPos(0, (oled.getHeight() / 2) + (oled.getFontAscent() - oled.getFontDescent()));
+  oled.setPrintPos(0, l(1, CENTER));
   oled << F("You may open");
-  oled.setPrintPos(0, (oled.getHeight() / 2) + (oled.getFontAscent() - oled.getFontDescent()) * 2);
+  oled.setPrintPos(0, l(2, CENTER));
   oled << F("the box.");
 }
 
@@ -283,7 +333,7 @@ void enterGPSFailure() {
   oled.setFont(ucg_font_6x12r);
 
   oled.setColor(255, 0, 0);
-  oled.setPrintPos(0, oled.getHeight() / 2);
+  oled.setPrintPos(0, l(0, CENTER));
   oled << F("No data from GPS!");
 }
 
@@ -292,9 +342,9 @@ void enterSDFailure() {
   oled.setFont(ucg_font_6x12r);
 
   oled.setColor(255, 0, 0);
-  oled.setPrintPos(0, oled.getHeight() / 2);
+  oled.setPrintPos(0, l(0, CENTER));
   oled << F("There was a problem");
-  oled.setPrintPos(0, (oled.getHeight() / 2) + (oled.getFontAscent() - oled.getFontDescent()));
+  oled.setPrintPos(0, l(1, CENTER));
   oled << F("reading the SD card.");
 }
 
@@ -317,20 +367,20 @@ void drawReadLocation() {
   oled.setFont(ucg_font_9x15Br);
   oled.setColor(0, 255, 0);
 
-  oled.setPrintPos(0, oled.getHeight() / 2);
+  oled.setPrintPos(0, l(0, CENTER));
   oled.printf(F("%-14s"), _distanceTo);
 
-  oled.setPrintPos(0, (oled.getHeight() / 2) + (oled.getFontAscent() - oled.getFontDescent()));
+  oled.setPrintPos(0, l(1, CENTER));
   oled.printf(F("%-14s"), TinyGPSPlus::cardinal(course));
 
   oled.setFont(ucg_font_6x12r);
   oled.setColor(255, 255, 255);
 
-  oled.setPrintPos(0, oled.getHeight() + oled.getFontDescent());
+  oled.setPrintPos(0, l(0, BOTTOM));
   oled.printf(F("%d satellites  "), gps.satellites.value());
 
   // Debug info
-  oled.setPrintPos(0, (oled.getHeight() + oled.getFontDescent()) - 12);
+  oled.setPrintPos(0, l(-1, BOTTOM));
   oled.printf(F("%-21s"), _debug);
 }
 

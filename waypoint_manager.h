@@ -6,6 +6,8 @@
 typedef struct Location {
   double latitude;
   double longitude;
+  char *name;
+  char *description;
 } Location;
 
 class WaypointManager {

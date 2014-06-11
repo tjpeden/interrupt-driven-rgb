@@ -27,20 +27,22 @@ WaypointManager::loadWaypoints(const char* name) {
   char json[raw.length()];
   raw.toCharArray(json, raw.length());
 
-  JsonParser<32> parser;
+  JsonParser<128> parser;
   JsonHashTable hashTable = parser.parseHashTable(json);
 
   if(!hashTable.success()) return false;
 
   JsonArray waypoints = hashTable.getArray("waypoints");
   for(int i = 0; i < waypoints.getLength(); i++) {
-    JsonArray point = waypoints.getArray(i);
+    JsonHashTable point = waypoints.getHashTable(i);
 
-    if(point.getLength() != 2) return false;
+    Location l = {
+      point.getDouble("latitude"),
+      point.getDouble("longitude"),
+      point.getString("name"),
+      point.getString("description")
+    };
 
-    Location l;
-    l.latitude  = point.getDouble(0);
-    l.longitude = point.getDouble(1);
     this->waypoints->add(l);
   }
 
