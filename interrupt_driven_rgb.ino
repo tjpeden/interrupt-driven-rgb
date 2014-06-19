@@ -68,6 +68,7 @@ TinyGPSCustom awake(gps, "PMTK010", 1);
 // Internal States
 State Loading      = State(enterLoading, updateLoading, NULL);
 State Unarmed      = State(enterUnarmed, NULL, exitUnarmed);
+State LockBox      = State(updateLockBox);
 State GetFix       = State(enterGetFix, updateGetFix, exitGetFix);
 State ReadLocation = State(enterReadLocation, updateReadLocation, exitReadLocation);
 State SleepModules = State(enterSleepModules, updateSleepModules, exitSleepModules);
@@ -93,7 +94,7 @@ void onPress(Button& button) {
 
 void onHold(Button& button) {
   if(!isArmed() && !stateMachine.isInState(OpenBox)) {
-    stateMachine.transitionTo(GetFix);
+    stateMachine.transitionTo(LockBox);
     return;
   }
 
@@ -264,8 +265,12 @@ void enterUnarmed() {
 }
 
 void exitUnarmed() {
-  lock();
   TimedEvent.stop(READ_LOCATION_TIMER);
+}
+
+void updateLockBox() {
+  lock();
+  stateMachine.transitionTo(GetFix);
 }
 
 void enterGetFix() {
