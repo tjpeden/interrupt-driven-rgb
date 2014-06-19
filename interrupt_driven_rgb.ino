@@ -1,7 +1,6 @@
-// #include <pitches.h>
-
 #include <SD.h>
 #include <SPI.h>
+#include <Servo.h>
 #include <EEPROM.h>
 #include <Button.h>
 #include <Ucglib.h>
@@ -13,8 +12,9 @@
 #include <LowPower_Teensy3.h>
 #include <FiniteStateMachine.h>
 
-#include "interrupt_driven_rgb.h"
+#include "pitches.h"
 #include "waypoint_manager.h"
+#include "interrupt_driven_rgb.h"
 
 // SPI Pins
 #define OLED_MOSI 11
@@ -35,8 +35,16 @@
 
 #define arraySize(a) (sizeof(a) / sizeof(a[0]))
 
-const uint8_t buttonPin = 6;
-const double threshold = 0.0075; // ~40 ft seems optimal
+const uint8_t piezoPin       = 23;
+const uint8_t buttonPin      = 6;
+const uint8_t servoSignalPin = 5;
+const uint8_t status1Pin     = 22;
+const uint8_t status2Pin     = 21;
+const uint8_t oledPowerPin   = 20;
+const uint8_t buttonLEDPin   = 19;
+const uint8_t servoPowerPin  = 18;
+const uint8_t arm_address    = 1;
+const double threshold  = 0.0075; // ~40 ft seems optimal
 double distanceTo;
 double course;
 
@@ -50,6 +58,8 @@ TEENSY3_LP LP = TEENSY3_LP();
 
 TinyGPSPlus gps;
 
+Servo lockServo;
+
 // Custom NMEA parsers
 TinyGPSCustom ack_command(gps, "PMTK001", 1);
 TinyGPSCustom ack_response(gps, "PMTK001", 2);
@@ -57,9 +67,10 @@ TinyGPSCustom awake(gps, "PMTK010", 1);
 
 // Internal States
 State Loading      = State(enterLoading, updateLoading, NULL);
+State Unarmed      = State(enterUnarmed, NULL, exitUnarmed);
 State GetFix       = State(enterGetFix, updateGetFix, exitGetFix);
 State ReadLocation = State(enterReadLocation, updateReadLocation, exitReadLocation);
-State SleepModules = State(enterSleepModules, updateSleepModules, NULL);
+State SleepModules = State(enterSleepModules, updateSleepModules, exitSleepModules);
 State SleepNow     = State(updateSleepNow);
 State WakeModules  = State(enterWakeModules, updateWakeModules, NULL);
 State Checkpoint   = State(enterCheckpoint, NULL, NULL);
@@ -81,8 +92,14 @@ void onPress(Button& button) {
 }
 
 void onHold(Button& button) {
+  if(!isArmed() && !stateMachine.isInState(OpenBox)) {
+    stateMachine.transitionTo(GetFix);
+    return;
+  }
+
   if(millis() < 20000 || stateMachine.isInState(OpenBox)) {
     waypoint_manager.reset();
+    tone(piezoPin, 262, 1000);
   } else {
     if(gps.location.isValid()) stateMachine.transitionTo(Checkpoint);
   }
@@ -95,6 +112,15 @@ void gpsFailure(TimerInformation* sender) {
 
 void initiateSleep(TimerInformation* sender) {
   stateMachine.transitionTo(SleepModules);
+}
+
+void play(Note notes[], int total) {
+  for(int i = 0; i < total; i++) {
+    if(notes[i].tone != NOTE_R0) {
+      tone(piezoPin, notes[i].tone, 1000/notes[i].duration);
+    }
+    delay(1000/notes[i].duration);
+  }
 }
 
 void drawTitleBorder() {
@@ -154,7 +180,33 @@ void describe(char* text, uint8_t width) {
   oled << string.substring(index+1);
 }
 
-// States
+void lock() {
+  digitalWrite(servoPowerPin, HIGH);
+  lockServo.write(150);
+  delay(1000);
+  digitalWrite(servoPowerPin, LOW);
+  EEPROM.write(arm_address, 0);
+}
+
+void unlock() {
+  digitalWrite(servoPowerPin, HIGH);
+  lockServo.write(180);
+  delay(1000);
+  digitalWrite(servoPowerPin, LOW);
+  EEPROM.write(arm_address, 255);
+}
+
+bool isArmed() {
+  return EEPROM.read(arm_address) == 0;
+}
+
+/*
+
+ **********
+ * States *
+ **********
+
+*/
 void enterLoading() {
   drawTitle(F("Loading"));
   oled.setFont(ucg_font_6x12r);
@@ -182,11 +234,34 @@ void updateLoading() {
   oled.begin(UCG_FONT_MODE_SOLID);
   oled.setColor(1, 0, 0, 0);
 
-  if(waypoint_manager.hasNext()) {
-    stateMachine.transitionTo(GetFix);
+  if(isArmed()) {
+    if(waypoint_manager.hasNext()) {
+      stateMachine.transitionTo(GetFix);
+    } else {
+      stateMachine.transitionTo(OpenBox);
+    }
   } else {
-    stateMachine.transitionTo(OpenBox);
+    stateMachine.transitionTo(Unarmed);
   }
+}
+
+void enterUnarmed() {
+  unlock();
+  TimedEvent.start(READ_LOCATION_TIMER);
+
+  drawTitle(F("Unarmed"));
+  oled.setFont(ucg_font_6x12r);
+
+  oled.setColor(255, 255, 0);
+  oled.setPrintPos(0, l(-1, BOTTOM));
+  oled << F("Hold the button to");
+  oled.setPrintPos(0, l(0, BOTTOM));
+  oled << F("continue.");
+}
+
+void exitUnarmed() {
+  lock();
+  TimedEvent.stop(READ_LOCATION_TIMER);
 }
 
 void enterGetFix() {
@@ -262,13 +337,18 @@ void enterSleepModules() {
   oled << F("Please wait...");
 
   Serial3.println(F("$PMTK161,0*28")); // Sleep GPS
+  delay(1000);
 }
 
-
 void updateSleepModules() {
-  if(ack_command.isUpdated())
-    if(strcmp(ack_command.value(), "161") + strcmp(ack_response.value(), "3") == 0)
-      stateMachine.transitionTo(SleepNow);
+  /*if(ack_command.isUpdated())
+    if(strcmp(ack_command.value(), "161") + strcmp(ack_response.value(), "3") == 0)*/
+  stateMachine.transitionTo(SleepNow);
+}
+
+void exitSleepModules() {
+  digitalWrite(oledPowerPin, LOW);
+  digitalWrite(buttonLEDPin, LOW);
 }
 
 void updateSleepNow() {
@@ -288,16 +368,25 @@ void enterWakeModules() {
   oled << F("Please wait...");
 
   Serial3.println(' ');
+
+  digitalWrite(oledPowerPin, HIGH);
+  digitalWrite(buttonLEDPin, HIGH);
+  oled.begin(UCG_FONT_MODE_SOLID);
 }
 
 void updateWakeModules() {
   if(awake.isUpdated()) {
     awake.value();
-    stateMachine.transitionTo(GetFix);
+    if(isArmed()) {
+      stateMachine.transitionTo(GetFix);
+    } else {
+      stateMachine.transitionTo(Unarmed);
+    }
   }
 }
 
 void enterCheckpoint() {
+  play(song, arraySize(song));
   Location current = waypoint_manager.current();
 
   drawTitle(current.name);
@@ -326,6 +415,8 @@ void enterOpenBox() {
   oled << F("You may open");
   oled.setPrintPos(0, l(2, CENTER));
   oled << F("the box.");
+
+  unlock();
 }
 
 void enterGPSFailure() {
@@ -386,6 +477,15 @@ void drawReadLocation() {
 
 void setup() {
   pinMode(SD_CS, OUTPUT);
+  pinMode(status1Pin, INPUT);     // Status 1
+  pinMode(status2Pin, INPUT);     // Status 2
+  pinMode(oledPowerPin, OUTPUT);  // OLED Power
+  pinMode(buttonLEDPin, OUTPUT);  // Button Ring Power
+  pinMode(servoPowerPin, OUTPUT); // Servo Power
+
+  digitalWrite(oledPowerPin, HIGH);
+  digitalWrite(buttonLEDPin, HIGH);
+  digitalWrite(servoPowerPin, LOW);
 
   button.pressHandler(onPress);
   button.holdHandler(onHold, 15000);
@@ -393,10 +493,14 @@ void setup() {
   TimedEvent.addTimer(GET_FIX_TIMER, 5000, gpsFailure);
   TimedEvent.addTimer(READ_LOCATION_TIMER, 60000*5, initiateSleep);
 
+  lockServo.attach(servoSignalPin);
+
+  tone(piezoPin, 262);
   Serial3.begin(9600);
   delay(1000);
   Serial3.println(F("$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28"));
   Serial3.println(F("$PMTK220,1000*1F"));
+  noTone(piezoPin);
 
   oled.begin(UCG_FONT_MODE_SOLID);
   oled.setColor(1, 0, 0, 0);
