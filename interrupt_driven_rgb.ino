@@ -44,7 +44,7 @@ const uint8_t oledPowerPin   = 20;
 const uint8_t buttonLEDPin   = 19;
 const uint8_t servoPowerPin  = 18;
 const uint8_t arm_address    = 1;
-const double threshold  = 0.0075; // ~40 ft seems optimal
+const double threshold       = 0.0075; // ~40 ft seems optimal
 double distanceTo;
 double course;
 
@@ -126,7 +126,11 @@ void play(Note notes[], int total) {
 void drawTitleBorder() {
   oled.clearScreen();
 
-  oled.setColor(0, 0, 255);
+  if(isArmed()) {
+    oled.setColor(0, 0, 255);
+  } else {
+    oled.setColor(255, 0, 255);
+  }
   oled.drawRFrame(0, 0, oled.getWidth(), 20, 3);
 
   oled.setFont(ucg_font_7x13Br);
@@ -185,7 +189,7 @@ void lock() {
   lockServo.write(150);
   delay(1000);
   digitalWrite(servoPowerPin, LOW);
-  EEPROM.write(arm_address, 0);
+  EEPROM.write(arm_address, 1);
 }
 
 void unlock() {
@@ -197,7 +201,7 @@ void unlock() {
 }
 
 bool isArmed() {
-  return EEPROM.read(arm_address) == 0;
+  return EEPROM.read(arm_address) == 1;
 }
 
 /*
@@ -450,10 +454,11 @@ void drawReadLocation() {
   }
 
   // Debug info formatted
+  /*char _debug[21];*/
+  /*sprintf(_debug, "hdop: %d WP: %s", gps.hdop.value(), _stats);*/
+
   char _stats[8];
-  char _debug[21];
   waypoint_manager.stats(_stats);
-  sprintf(_debug, "hdop: %d WP: %s", gps.hdop.value(), _stats);
 
   oled.setFont(ucg_font_9x15Br);
   oled.setColor(0, 255, 0);
@@ -471,8 +476,8 @@ void drawReadLocation() {
   oled.printf(F("%d satellites  "), gps.satellites.value());
 
   // Debug info
-  oled.setPrintPos(0, l(-1, BOTTOM));
-  oled.printf(F("%-21s"), _debug);
+  /*oled.setPrintPos(0, l(-1, BOTTOM));
+  oled.printf(F("%-21s"), _debug);*/
 }
 
 void setup() {
