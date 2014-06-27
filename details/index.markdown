@@ -5,8 +5,8 @@ title: Interrupt Driven RGB
 
 # Details
 
-[![Soldering the power]({{site.url}}/images/rgb_photos/soldering_the_power.jpg)]
-({{site.url}}/images/rgb_photos/soldering_the_power.jpg)
+[![Soldering the power]({{site.url}}/interrupt-driven-rgb/images/rgb_photos/soldering_the_power.jpg)]
+({{site.url}}/interrupt-driven-rgb/images/rgb_photos/soldering_the_power.jpg)
 
 ## Electronics
 - [Teensy 3.1](http://www.adafruit.com/product/1625)
@@ -23,5 +23,5 @@ title: Interrupt Driven RGB
 
 ## Breadboard Diagram
 
-[![Frizting Diagram]({{site.url}}/images/rgb_photos/rgb_project_bb.png)]
-({{site.url}}/images/rgb_photos/rgb_project_bb.png)
+[![Frizting Diagram]({{site.url}}/interrupt-driven-rgb/images/rgb_photos/rgb_project_bb.png)]
+({{site.url}}/interrupt-driven-rgb/images/rgb_photos/rgb_project_bb.png)
