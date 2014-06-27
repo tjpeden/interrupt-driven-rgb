@@ -24,5 +24,5 @@ title: Interrupt Driven RGB
 
 ## Breadboard Diagram
 
-[![Frizting Diagram]({{site.baseurl}}/images/rgb_photos/rgb_project_bb.png)]
-({{site.baseurl}}/images/rgb_photos/rgb_project_bb.png)
+[![Frizting Diagram]({{site.baseurl}}/images/rgb_photos/rgb_project_bb.jpg)]
+({{site.baseurl}}/images/rgb_photos/rgb_project_bb.jpg)
