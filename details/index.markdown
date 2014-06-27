@@ -22,7 +22,7 @@ title: Interrupt Driven RGB
 - 3 x 330&Omega;
 - 3 x 100k&Omega;
 
-## Breadboard Diagram
+## Wiring Diagram
 
 [![Frizting Diagram]({{site.baseurl}}/images/rgb_photos/rgb_project_bb.jpg)]
 ({{site.baseurl}}/images/rgb_photos/rgb_project_bb.jpg)
