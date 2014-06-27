@@ -4,31 +4,29 @@ title: Interrupt Driven RGB
 ---
 
 <div id="home">
-  <h1><a name="reverse-geocaching-box" class="anchor" href="#reverse-geocaching-box"><span class="octicon octicon-link"></span></a>Interrupt-Driven Reverse Geocaching Box Project</h1>
-  <p>What is that, you say? In the simplest of terms, it's like a regular geocache, except you start with the cache locked in a box that is location aware (it has a GPS). You take the box to the appropriate location and it will open up! How do you know what location to take it to, you ask? There is a screen on the top of the box which tells you what direction to go and how far to go in that direction. It's probably best to use Google Maps to try to determine where you really need to go as it only gives you simple distance and direction. Sounds cool, huh?</p>
+  <h1>Interrupt-Driven Reverse Geocaching Box Project</h1>
 
-  <h2>
-  <a name="this-project" class="anchor" href="#this-project"><span class="octicon octicon-link"></span></a>This Project</h2>
+  <a href="{{site.url}}/images/rgb_photos/deployed.jpg"><img src="{{site.url}}/images/rgb_photos/deployed.jpg" alt="Box finished and deployed"></a>
 
-  <p>Oh, you've seen projects like this before? What's so special about our box? Excellent question! We decided to take it a couple steps further. First, we chose to handle power conservation differently. Second, the box doesn't just open when you get to the designated location. It's programming allows for multiple locations to be set and the box only opens once you get to the last location. I know what you're thinking, it's sounds like more trouble than it's worth. Well, there's a reason for all of the different locations. The box is to be used in a wedding proposal. The idea is to revisit some of the important memories of their relationship.</p>
+  <h2>Reverse Geocaching Box<a name="reverse-geocaching-box" class="anchor" href="#reverse-geocaching-box"><span class="octicon octicon-link"></span></a></h2>
 
-  <h2>
-  <a name="the-technical-details" class="anchor" href="#the-technical-details"><span class="octicon octicon-link"></span></a>The Technical Details</h2>
+  <p>What is that, you say? In the simplest of terms, it's like a regular geocache, except you start with the cache locked in a box that is location aware (it has a GPS). You take the box to the appropriate location and it will open up! How do you know what location to take it to, you ask? There is a screen on the top of the box which tells you what direction to go and how far to go in that direction. It's probably best to bring some maps with you or use Google Maps to try to determine where you really need to go as it only gives you simple distance and direction. Sounds cool, huh?</p>
+
+  <h2>This Project<a name="this-project" class="anchor" href="#this-project"><span class="octicon octicon-link"></span></a></h2>
+
+  <p>Oh, you've seen projects like this before? What's so special about our box? Excellent question! We decided to take it a couple steps further. First, we chose to handle power conservation a bit differently. Second, the box doesn't just open when you get to the designated location. It's programming allows for multiple locations to be set and the box only opens once you get to the last location. I know what you're thinking, it's sounds like more trouble than it's worth. Well, there's a reason for all of the different locations. The box is to be used in a wedding proposal. The idea is to revisit some of the important memories of their relationship.</p>
+
+  <h2>The Technical Details<a name="the-technical-details" class="anchor" href="#the-technical-details"><span class="octicon octicon-link"></span></a></h2>
 
   <p>All the other RGB projects I've seen use a Pololu switch to cut power to the MCU. While that is extremely effective, it's also kind of boring. Our box uses low power modules with sleep functions to reduce their power consumption when not in use. It also sports a USB charging circuit so that the 2500mAh battery is ready when you need it. The display is a full color 1.5" OLED with a handy microSD card slot on the bottom. The location data is stored on the card so that it can be easily configured and tweaked before it's deployed.</p>
 
-  <p>Due to library constraints, we ended up using a MOSFET to turn the screen off. But that was okay because we needed MOSFETs for a couple other components as well. We didn't want the LED ring on the button to be on constantly, draining all of our juice, so we put a MOSFET on it to turn it on and off as needed. We used this same tactic on the servo, basically, we move it into position then turn it off.</p>
+  <p>Due to library constraints, we ended up needing to use a MOSFET to turn the screen off. But that was okay because we had planned to use them to turn a couple other components on and off as well. We didn't want the LED ring on the button to be on constantly, draining all of our juice, so we put a MOSFET on it to control the LED ring as needed. We used this same tactic on the servo, basically, we move it into position then turn it off.</p>
 
-  <h2>
-  <a name="authors-and-contributors" class="anchor" href="#authors-and-contributors"><span class="octicon octicon-link"></span></a>Authors and Contributors</h2>
+  <p class="right"><a href="{{site.url}}/details/">More info &raquo;</a></p>
 
-  <p>TJ Peden (<a href="https://github.com/tpeden" class="user-mention">@tpeden</a>) is the Engineer and Developer of the project. Patrick Reames (<a href="https://github.com/patrickr" class="user-mention">@patrickr</a>) designed, planned and deployed the project.</p>
+  <h2>Conclusion<a name="conclusion" class="anchor" href="#conclusion"><span class="octicon octicon-link"></span></a></h2>
 
-  <p>Pictures and additional information are coming, please check back.</p>
-  <!-- <h1>Blog Posts</h1>
-  <ul class="posts">
-    {% for post in site.posts %}
-      <li><span>{{ post.date | date_to_string }}</span> &raquo; <a href="{{ post.url }}">{{ post.title }}</a></li>
-    {% endfor %}
-  </ul> -->
+  <h2>Authors and Contributors<a name="authors-and-contributors" class="anchor" href="#authors-and-contributors"><span class="octicon octicon-link"></span></a></h2>
+
+  <p>TJ Peden (<a href="https://github.com/tpeden" class="user-mention">@tpeden</a>) is the Engineer and Developer of the project. Patrick Reames (<a href="https://github.com/patrickr" class="user-mention">@patrickr</a>) designed, planned and deployed the project. Special thanks to Andrew Harmon over at <a href="http://www.fablabtulsa.com">FabLab Tulsa</a> for all of his help.</p>
 </div>

@@ -22,6 +22,7 @@ time, mark, audio, video {
   font: inherit;
   vertical-align: baseline;
 }
+
 /* HTML5 display-role reset for older browsers */
 article, aside, details, figcaption, figure,
 footer, header, hgroup, menu, nav, section {
@@ -107,6 +108,8 @@ header h2 {
 
 #main-content img {
   max-width: 100%;
+  box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.75);
+  margin: 10px 0;
 }
 
 aside#sidebar {
@@ -308,6 +311,10 @@ h6:before {
 
 p {
   margin-bottom: 20px;
+}
+
+p.right {
+  text-align: right;
 }
 
 a {
