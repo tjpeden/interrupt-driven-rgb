@@ -5,10 +5,11 @@ title: Interrupt Driven RGB
 
 # Details
 
-[![Soldering the power]({{site.url}}/interrupt-driven-rgb/images/rgb_photos/soldering_the_power.jpg)]
-({{site.url}}/interrupt-driven-rgb/images/rgb_photos/soldering_the_power.jpg)
+[![Soldering the power]({{site.baseurl}}/images/rgb_photos/soldering_the_power.jpg)]
+({{site.baseurl}}/images/rgb_photos/soldering_the_power.jpg)
 
 ## Electronics
+
 - [Teensy 3.1](http://www.adafruit.com/product/1625)
 - [Adafruit Ultimate GPS Breakout](http://www.adafruit.com/products/746)
 - [1.5" Color OLED](http://www.adafruit.com/products/1431)
@@ -23,5 +24,5 @@ title: Interrupt Driven RGB
 
 ## Breadboard Diagram
 
-[![Frizting Diagram]({{site.url}}/interrupt-driven-rgb/images/rgb_photos/rgb_project_bb.png)]
-({{site.url}}/interrupt-driven-rgb/images/rgb_photos/rgb_project_bb.png)
+[![Frizting Diagram]({{site.baseurl}}/images/rgb_photos/rgb_project_bb.png)]
+({{site.baseurl}}/images/rgb_photos/rgb_project_bb.png)

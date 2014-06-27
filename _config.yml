@@ -1,3 +1,5 @@
 name: TJCoding.com
+tagline: 'Projects and Experiments by TJ Peden'
 markdown: redcarpet
 highlighter: true
+baseurl: /interrupt-driven-rgb
