@@ -5,8 +5,7 @@ title: Interrupt Driven RGB
 
 # Details
 
-[![Soldering the power]({{site.baseurl}}/images/rgb_photos/soldering_the_power.jpg)]
-({{site.baseurl}}/images/rgb_photos/soldering_the_power.jpg)
+![Soldering the power]({{site.baseurl}}/images/rgb_photos/soldering_the_power.jpg)
 
 ## Electronics
 
@@ -24,5 +23,5 @@ title: Interrupt Driven RGB
 
 ## Wiring Diagram
 
-[![Frizting Diagram]({{site.baseurl}}/images/rgb_photos/rgb_project_bb.jpg)]
+[![Wiring Diagram]({{site.baseurl}}/images/rgb_photos/rgb_project_bb.jpg)]
 ({{site.baseurl}}/images/rgb_photos/rgb_project_bb.jpg)
