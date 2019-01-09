@@ -1,4 +1,4 @@
 interrupt-driven-rgb
 ====================
 
-Interrupt Driven Reverse Geocaching Box Arduino Project
+Interrupt Driven Reverse Geocache Box Arduino Project
